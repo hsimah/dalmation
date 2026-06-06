@@ -8,3 +8,18 @@ edition = "2024"
 # (the universal convention). `v4_22` unlocks API up to GTK 4.22, which is what
 # you have installed.
 gtk = { version = "0.11.3", package = "gtk4", features = ["v4_22"] }
+
+# Pure-Rust image decode/resize, run on background worker threads. Thread-safe
+# and returns plain byte buffers (no GObjects), which is exactly what we need to
+# hand results back to the UI thread.
+image = "0.25"
+
+# Lightweight async MPMC channel. We use it both ways: main -> workers (request
+# queue, drained with blocking recv) and workers -> main (results, awaited on the
+# GLib main loop). Its Sender is Send + Clone, unlike GTK objects.
+async-channel = "2"
+
+# Direct PNG encode/decode, used only by the thumbnail cache to read & write the
+# freedesktop `Thumb::URI` / `Thumb::MTime` tEXt chunks (the `image` crate's
+# encoder can't write arbitrary text chunks).
+png = "0.17"

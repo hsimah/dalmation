@@ -7,6 +7,8 @@ use gtk::{
     Orientation, ScrolledWindow, SignalListItemFactory, SingleSelection,
 };
 
+use crate::thumbnail::Thumbnailer;
+
 // The metadata we ask GIO to fetch per entry. Requesting only what we use keeps
 // enumeration cheap. `standard::icon` gives us a themed file/folder icon for
 // free in M1; thumbnails replace it for images in M3.
@@ -24,10 +26,14 @@ pub struct FileGrid {
     root: ScrolledWindow,
     dir_list: DirectoryList,
     grid_view: GridView,
+    // Held so the request channel + worker pool stay alive for the grid's life.
+    _thumbs: Thumbnailer,
 }
 
 impl FileGrid {
     pub fn new() -> Self {
+        let thumbs = Thumbnailer::new();
+
         // DirectoryList is a GListModel that enumerates a directory *asynchronously*
         // and emits one GFileInfo per entry — so the IO never blocks the UI. We
         // start it empty and point it at a path in `load()`.
@@ -63,7 +69,9 @@ impl FileGrid {
 
         // `bind`: fill an existing cell with a specific row's data. Called whenever
         // a recycled cell is pointed at a (new) GFileInfo.
-        factory.connect_bind(|_, item| {
+        let thumbs_for_bind = thumbs.clone();
+        let dir_for_bind = dir_list.clone();
+        factory.connect_bind(move |_, item| {
             let item = item.downcast_ref::<ListItem>().unwrap();
             let Some(info) = item.item().and_downcast::<gio::FileInfo>() else {
                 return;
@@ -75,8 +83,26 @@ impl FileGrid {
             let label = image.next_sibling().and_downcast::<Label>().unwrap();
 
             label.set_text(&info.display_name());
+
+            // Reset to the themed icon (also the placeholder while a thumbnail
+            // loads), and clear the recycle marker so a stale thumbnail result
+            // for whatever file this cell *used* to show can't land on it.
+            image.set_widget_name("");
             if let Some(icon) = info.icon() {
                 image.set_from_gicon(&icon);
+            }
+
+            // For images, ask for a thumbnail. We resolve the absolute path from
+            // the directory itself (same as activation).
+            let is_image = info
+                .content_type()
+                .is_some_and(|ct| ct.starts_with("image/"));
+            if is_image {
+                if let Some(dir) = dir_for_bind.file() {
+                    if let Some(path) = dir.child(info.name()).path() {
+                        thumbs_for_bind.request(&path, &image);
+                    }
+                }
             }
         });
 
@@ -93,6 +119,7 @@ impl FileGrid {
             root,
             dir_list,
             grid_view,
+            _thumbs: thumbs,
         }
     }
 

@@ -1,6 +1,7 @@
 mod app;
 mod nav;
 mod theme;
+mod thumbnail;
 mod ui;
 
 use gtk::glib;
