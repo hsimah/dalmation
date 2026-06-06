@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use gtk::gio;
 use gtk::prelude::*;
@@ -42,4 +42,74 @@ pub fn rename(path: &Path, new_name: &str) -> Fallible {
         return Err(format!("'{new_name}' already exists"));
     }
     std::fs::rename(path, &dest).map_err(|e| e.to_string())
+}
+
+/// Copy `src` into `dest_dir`, keeping its name (or a "(copy)" variant if that
+/// would clobber something). Recurses into directories.
+pub fn copy_into(src: &Path, dest_dir: &Path) -> Fallible {
+    let name = src.file_name().ok_or("Source has no name")?;
+    let dest = unique_destination(&dest_dir.join(name));
+    copy_recursive(src, &dest).map_err(|e| e.to_string())
+}
+
+/// Move `src` into `dest_dir`. Tries a fast rename; if that crosses a filesystem
+/// boundary (EXDEV), falls back to copy-then-delete.
+pub fn move_into(src: &Path, dest_dir: &Path) -> Fallible {
+    let name = src.file_name().ok_or("Source has no name")?;
+    let target = dest_dir.join(name);
+    if target == src {
+        return Ok(()); // already here
+    }
+    let dest = unique_destination(&target);
+    if std::fs::rename(src, &dest).is_ok() {
+        return Ok(());
+    }
+    copy_recursive(src, &dest).map_err(|e| e.to_string())?;
+    delete_permanent(src)
+}
+
+fn copy_recursive(src: &Path, dest: &Path) -> std::io::Result<()> {
+    if std::fs::symlink_metadata(src)?.file_type().is_dir() {
+        std::fs::create_dir_all(dest)?;
+        for entry in std::fs::read_dir(src)? {
+            let entry = entry?;
+            copy_recursive(&entry.path(), &dest.join(entry.file_name()))?;
+        }
+        Ok(())
+    } else {
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::copy(src, dest).map(|_| ())
+    }
+}
+
+/// `dest` if free, else `dest` with " (copy)" / " (copy N)" inserted before the
+/// extension until a free name is found.
+fn unique_destination(dest: &Path) -> PathBuf {
+    if !dest.exists() {
+        return dest.to_path_buf();
+    }
+    let parent = dest.parent().unwrap_or_else(|| Path::new("."));
+    let stem = dest
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = dest.extension().map(|s| s.to_string_lossy().into_owned());
+    for n in 1u32.. {
+        let suffix = if n == 1 {
+            " (copy)".to_string()
+        } else {
+            format!(" (copy {n})")
+        };
+        let name = match &ext {
+            Some(ext) => format!("{stem}{suffix}.{ext}"),
+            None => format!("{stem}{suffix}"),
+        };
+        let candidate = parent.join(name);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    unreachable!()
 }

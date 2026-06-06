@@ -129,8 +129,7 @@ impl FileGrid {
         self.dir_list.set_file(Some(&gio::File::for_path(path)));
     }
 
-    /// The directory currently shown, if any. (Used by paste in M4b.)
-    #[allow(dead_code)]
+    /// The directory currently shown, if any.
     pub fn current_dir(&self) -> Option<PathBuf> {
         self.dir_list.file().and_then(|file| file.path())
     }

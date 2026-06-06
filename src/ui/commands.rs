@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use gtk::gdk;
 use gtk::gio;
@@ -14,6 +16,17 @@ use gtk::{
 use crate::fs;
 use crate::ui::file_grid::FileGrid;
 use crate::ui::info_dialog;
+
+/// Whether a clipboard entry should be copied or moved when pasted.
+#[derive(Clone, Copy, PartialEq)]
+enum ClipMode {
+    Copy,
+    Cut,
+}
+
+/// Internal copy/cut clipboard: the chosen files and what to do with them on
+/// paste. Single-threaded shared state — same `Rc<RefCell<..>>` pattern as `Nav`.
+type Clipboard = Rc<RefCell<Option<(ClipMode, Vec<PathBuf>)>>>;
 
 /// Install file-operation actions, keyboard accelerators, and the right-click
 /// context menu onto `window` / `grid`.
@@ -99,12 +112,79 @@ pub fn install(app: &Application, window: &ApplicationWindow, grid: &FileGrid) {
         ),
     );
 
+    // --- copy / cut / paste, backed by an internal clipboard ---
+    let clipboard: Clipboard = Rc::new(RefCell::new(None));
+
+    add_action(
+        &window,
+        "copy",
+        clone!(
+            #[strong] grid,
+            #[strong] clipboard,
+            move || set_clipboard(&clipboard, ClipMode::Copy, grid.selected_paths())
+        ),
+    );
+    add_action(
+        &window,
+        "cut",
+        clone!(
+            #[strong] grid,
+            #[strong] clipboard,
+            move || set_clipboard(&clipboard, ClipMode::Cut, grid.selected_paths())
+        ),
+    );
+    add_action(
+        &window,
+        "paste",
+        clone!(
+            #[weak] window,
+            #[strong] grid,
+            #[strong] clipboard,
+            move || paste(&window, &grid, &clipboard)
+        ),
+    );
+
     app.set_accels_for_action("win.rename", &["F2"]);
     app.set_accels_for_action("win.trash", &["Delete"]);
     app.set_accels_for_action("win.delete-permanent", &["<Shift>Delete"]);
     app.set_accels_for_action("win.properties", &["<Alt>Return"]);
+    app.set_accels_for_action("win.copy", &["<Ctrl>c"]);
+    app.set_accels_for_action("win.cut", &["<Ctrl>x"]);
+    app.set_accels_for_action("win.paste", &["<Ctrl>v"]);
 
     install_context_menu(&grid);
+}
+
+fn set_clipboard(clipboard: &Clipboard, mode: ClipMode, paths: Vec<PathBuf>) {
+    if !paths.is_empty() {
+        *clipboard.borrow_mut() = Some((mode, paths));
+    }
+}
+
+fn paste(window: &ApplicationWindow, grid: &FileGrid, clipboard: &Clipboard) {
+    let Some(dest) = grid.current_dir() else {
+        return;
+    };
+    // Clone the entry out so we don't hold the RefCell borrow across the (slow)
+    // filesystem work below.
+    let Some((mode, paths)) = clipboard.borrow().clone() else {
+        return;
+    };
+
+    let errors: Vec<String> = paths
+        .iter()
+        .filter_map(|src| match mode {
+            ClipMode::Copy => fs::copy_into(src, &dest).err(),
+            ClipMode::Cut => fs::move_into(src, &dest).err(),
+        })
+        .collect();
+
+    if mode == ClipMode::Cut {
+        *clipboard.borrow_mut() = None; // a cut is consumed by pasting
+    }
+    if !errors.is_empty() {
+        show_error(window, &errors.join("\n"));
+    }
 }
 
 fn add_action<F: Fn() + 'static>(window: &ApplicationWindow, name: &str, callback: F) {
@@ -115,6 +195,9 @@ fn add_action<F: Fn() + 'static>(window: &ApplicationWindow, name: &str, callbac
 
 fn install_context_menu(grid: &FileGrid) {
     let menu = gio::Menu::new();
+    menu.append(Some("Copy"), Some("win.copy"));
+    menu.append(Some("Cut"), Some("win.cut"));
+    menu.append(Some("Paste"), Some("win.paste"));
     menu.append(Some("Rename"), Some("win.rename"));
     menu.append(Some("Move to Trash"), Some("win.trash"));
     menu.append(Some("Delete permanently…"), Some("win.delete-permanent"));
