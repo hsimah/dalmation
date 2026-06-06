@@ -1,0 +1,41 @@
+/* Kitty-like look: inherit the system theme's colors but render the window
+ * background semi-transparent so the desktop shows through. `@theme_bg_color`
+ * and friends are named colors defined by whatever GTK theme is active, so this
+ * tracks your system theme automatically; `alpha(color, a)` re-uses that color
+ * at reduced opacity. */
+
+.dalmation {
+    background-color: alpha(@theme_bg_color, 0.85);
+}
+
+/* The view widgets (scroller, grid) paint their own opaque background from the
+ * theme, which would hide our transparency — knock those out so the window's
+ * translucent background is what shows. */
+.dalmation scrolledwindow,
+.dalmation viewport,
+.dalmation gridview,
+.dalmation listview {
+    background: transparent;
+}
+
+.path-bar {
+    padding: 6px 8px;
+}
+
+.path-bar entry {
+    background-color: alpha(@theme_base_color, 0.65);
+}
+
+.sidebar {
+    background-color: alpha(@theme_bg_color, 0.35);
+}
+
+/* One item in the grid: icon stacked over an ellipsized label. */
+.file-cell {
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.file-cell:hover {
+    background-color: alpha(@theme_selected_bg_color, 0.25);
+}

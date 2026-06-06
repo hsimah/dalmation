@@ -1,0 +1,10 @@
+[package]
+name = "dalmation"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# GTK4 Rust bindings. `package = "gtk4"` is the real crate; we import it as `gtk`
+# (the universal convention). `v4_22` unlocks API up to GTK 4.22, which is what
+# you have installed.
+gtk = { version = "0.11.3", package = "gtk4", features = ["v4_22"] }
