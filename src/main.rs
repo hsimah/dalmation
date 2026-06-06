@@ -1,4 +1,5 @@
 mod app;
+mod fs;
 mod nav;
 mod theme;
 mod thumbnail;

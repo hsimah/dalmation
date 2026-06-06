@@ -5,6 +5,7 @@ use gtk::prelude::*;
 use gtk::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation, Paned};
 
 use crate::nav::Nav;
+use crate::ui::commands;
 use crate::ui::file_grid::FileGrid;
 use crate::ui::file_tree::FileTree;
 use crate::ui::path_bar::PathBar;
@@ -112,6 +113,9 @@ pub fn build_window(app: &Application) -> ApplicationWindow {
         let navigate = navigate.clone();
         move |path| navigate(&path)
     });
+
+    // File-operation actions, accelerators, and the right-click context menu.
+    commands::install(app, &window, &grid);
 
     window
 }

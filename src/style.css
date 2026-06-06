@@ -45,6 +45,11 @@
     padding: 2px 6px;
 }
 
+/* Modal dialogs (Properties, Rename). */
+.info-dialog .dim-label {
+    opacity: 0.6;
+}
+
 /* One item in the grid: icon stacked over an ellipsized label. */
 .file-cell {
     padding: 8px;

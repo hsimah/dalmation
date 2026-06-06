@@ -4,7 +4,7 @@ use gtk::gio::prelude::*;
 use gtk::prelude::*;
 use gtk::{
     gio, Box as GtkBox, DirectoryList, GridView, Image, Justification, Label, ListItem,
-    Orientation, ScrolledWindow, SignalListItemFactory, SingleSelection,
+    MultiSelection, Orientation, ScrolledWindow, SignalListItemFactory,
 };
 
 use crate::thumbnail::Thumbnailer;
@@ -40,8 +40,9 @@ impl FileGrid {
         let dir_list = DirectoryList::new(Some(ATTRS), gio::File::NONE);
         dir_list.set_monitored(true); // live-update when the directory changes on disk
 
-        // SingleSelection adapts the model for a view and tracks the selected row.
-        let selection = SingleSelection::new(Some(dir_list.clone()));
+        // MultiSelection adapts the model for the view and tracks which rows are
+        // selected (Ctrl/Shift-click and rubber-band select multiple).
+        let selection = MultiSelection::new(Some(dir_list.clone()));
 
         // A factory builds and recycles the widget for each visible cell. GTK only
         // realizes cells that are on screen, so this scales to huge directories.
@@ -126,6 +127,34 @@ impl FileGrid {
     /// Point the grid at a directory. DirectoryList re-enumerates asynchronously.
     pub fn load(&self, path: &Path) {
         self.dir_list.set_file(Some(&gio::File::for_path(path)));
+    }
+
+    /// The directory currently shown, if any. (Used by paste in M4b.)
+    #[allow(dead_code)]
+    pub fn current_dir(&self) -> Option<PathBuf> {
+        self.dir_list.file().and_then(|file| file.path())
+    }
+
+    /// Absolute paths of the currently-selected entries. We resolve each from the
+    /// DirectoryList's directory, so no dependency on `Nav`.
+    pub fn selected_paths(&self) -> Vec<PathBuf> {
+        let Some(dir) = self.dir_list.file() else {
+            return Vec::new();
+        };
+        let Some(model) = self.grid_view.model() else {
+            return Vec::new();
+        };
+        let mut paths = Vec::new();
+        for pos in 0..model.n_items() {
+            if model.is_selected(pos) {
+                if let Some(info) = model.item(pos).and_downcast::<gio::FileInfo>() {
+                    if let Some(path) = dir.child(info.name()).path() {
+                        paths.push(path);
+                    }
+                }
+            }
+        }
+        paths
     }
 
     /// Call `f` with the absolute path of an entry when it is activated
