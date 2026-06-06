@@ -30,6 +30,21 @@
     background-color: alpha(@theme_bg_color, 0.35);
 }
 
+.file-tree {
+    padding: 4px;
+    background: transparent;
+}
+
+.file-tree row {
+    border-radius: 6px;
+    padding: 2px 4px;
+}
+
+.path-bar button.flat {
+    min-width: 28px;
+    padding: 2px 6px;
+}
+
 /* One item in the grid: icon stacked over an ellipsized label. */
 .file-cell {
     padding: 8px;
