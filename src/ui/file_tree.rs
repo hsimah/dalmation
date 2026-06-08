@@ -83,8 +83,9 @@ impl FileTree {
                 label.set_text(&dir_label(path.as_path()));
             }
         });
-
+                
         let view = ListView::new(Some(selection), Some(factory));
+        view.set_single_click_activate(true);
         view.add_css_class("file-tree");
 
         let root = ScrolledWindow::new();
