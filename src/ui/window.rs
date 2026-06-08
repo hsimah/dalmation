@@ -7,7 +7,6 @@ use gtk::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation, Pane
 use crate::nav::Nav;
 use crate::ui::commands;
 use crate::ui::file_grid::FileGrid;
-use crate::ui::file_tree::FileTree;
 use crate::ui::path_bar::PathBar;
 
 /// Build the main window: a vertical stack of [ path bar ] over a horizontal
@@ -34,9 +33,6 @@ pub fn build_window(app: &Application) -> ApplicationWindow {
     paned.set_position(240);
     paned.set_vexpand(true);
 
-    // Sidebar tree rooted at "/" so the whole filesystem is reachable.
-    let tree = FileTree::new(Path::new("/"));
-    paned.set_start_child(Some(tree.widget()));
     paned.set_resize_start_child(false);
     paned.set_shrink_start_child(false);
 
@@ -104,12 +100,6 @@ pub fn build_window(app: &Application) -> ApplicationWindow {
 
     // Double-click / Enter on a grid entry → enter it (if a directory).
     grid.connect_activated({
-        let navigate = navigate.clone();
-        move |path| navigate(&path)
-    });
-
-    // Activate a tree row → navigate there.
-    tree.connect_activated({
         let navigate = navigate.clone();
         move |path| navigate(&path)
     });
