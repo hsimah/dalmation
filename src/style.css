@@ -52,8 +52,20 @@
 
 /* One item in the grid: icon stacked over an ellipsized label. */
 .file-cell {
-    padding: 8px;
     border-radius: 8px;
+    padding: 8px;
+}
+
+.dalmation gridview > child {
+    border-radius: 8px;
+}
+
+.dalmation gridview > child:selected {
+    background-color: transparent;
+}
+
+.dalmation gridview > child:selected > .file-cell {
+    background-color: alpha(@theme_selected_bg_color, 0.1);
 }
 
 .file-cell:hover {
