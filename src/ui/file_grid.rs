@@ -6,7 +6,7 @@ use gtk::{
     gio, Box as GtkBox, DirectoryList, GridView, Image, Justification, Label, ListItem,
     MultiSelection, Orientation, ScrolledWindow, SignalListItemFactory,
 };
-
+use gtk::glib;
 use crate::thumbnail::Thumbnailer;
 
 // The metadata we ask GIO to fetch per entry. Requesting only what we use keeps
@@ -106,8 +106,25 @@ impl FileGrid {
                 }
             }
         });
-
+        
         let grid_view = GridView::new(Some(selection), Some(factory));
+        let gesture = gtk::GestureClick::new();
+        gesture.set_button(gtk::gdk::BUTTON_PRIMARY);
+        gesture.set_propagation_phase(gtk::PropagationPhase::Capture);
+        gesture.connect_pressed(glib::clone!(
+          #[weak] grid_view,
+          move |_gesture, _n_press, x, y| {
+              let hit = grid_view.pick(x, y, gtk::PickFlags::DEFAULT);
+              let on_background = hit.map_or(true, |w| w == *grid_view.upcast_ref::<gtk::Widget>());
+              if on_background {
+                  if let Some(model) = grid_view.model() {
+                      model.unselect_all();
+                  }
+              }
+          }
+        ));
+
+        grid_view.add_controller(gesture);
         grid_view.set_min_columns(2);
         grid_view.set_max_columns(12);
 
