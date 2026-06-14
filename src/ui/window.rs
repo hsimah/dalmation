@@ -2,7 +2,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use gtk::prelude::*;
-use gtk::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation, Paned};
+use gtk::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation, Paned, HeaderBar};
 
 use crate::nav::Nav;
 use crate::ui::commands;
@@ -14,19 +14,19 @@ use crate::ui::path_bar::PathBar;
 pub fn build_window(app: &Application) -> ApplicationWindow {
     let start = glib::home_dir();
     let nav = Nav::new(start.clone());
-
+    let path_bar = PathBar::new(&start);
+    let title_bar = HeaderBar::new();
+    title_bar.set_title_widget(Some(path_bar.widget()));
     let window = ApplicationWindow::builder()
         .application(app)
         .title("dalmation")
+        .titlebar(&title_bar)
         .default_width(1100)
         .default_height(720)
         .build();
     window.add_css_class("dalmation");
 
     let root = GtkBox::new(Orientation::Vertical, 0);
-
-    let path_bar = PathBar::new(&start);
-    root.append(path_bar.widget());
 
     // Resizable split. The handle lets the user drag the sidebar width.
     let paned = Paned::new(Orientation::Horizontal);
