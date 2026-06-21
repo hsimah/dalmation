@@ -8,9 +8,9 @@ use gtk::{
 };
 use gtk::glib;
 use crate::thumbnail::Thumbnailer;
-use crate::fs::directory_sorter::DirectorySorter;
+use crate::fs::directory_sorter::{DirectorySorter, Sort};
 
-const ATTRS: &str = "standard::type,standard::name,standard::display-name,standard::icon,standard::content-type";
+const ATTRS: &str = "standard::type,standard::name,standard::display-name,standard::icon,standard::content-type,time::modified";
 const ICON_SIZE: i32 = 64;
 
 #[derive(Clone)]
@@ -18,6 +18,7 @@ pub struct FileGrid {
     root: ScrolledWindow,
     dir_list: DirectoryList,
     grid_view: GridView,
+    sorter: DirectorySorter,
     _thumbs: Thumbnailer,
 }
 
@@ -29,10 +30,10 @@ impl FileGrid {
         dir_list.set_monitored(true);
 
         
-        let directory_sorter = DirectorySorter::new();
+        let sorter = DirectorySorter::new();
         let sorted = SortListModel::builder()
             .model(&dir_list)
-            .sorter(directory_sorter.sorter())
+            .sorter(sorter.sorter())
             .build();
         
         let selection = MultiSelection::new(Some(sorted.clone()));
@@ -120,8 +121,14 @@ impl FileGrid {
             root,
             dir_list,
             grid_view,
+            sorter,
             _thumbs: thumbs,
         }
+    }
+
+    /// Re-sort the grid by `sort`.
+    pub fn set_sort(&self, sort: Sort) {
+        self.sorter.sort(sort);
     }
 
     pub fn load(&self, path: &Path) {

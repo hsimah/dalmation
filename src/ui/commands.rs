@@ -7,6 +7,7 @@ use gtk::gio;
 use gtk::gio::prelude::*;
 use gtk::glib;
 use gtk::glib::clone;
+use gtk::glib::prelude::ToVariant;
 use gtk::prelude::*;
 use gtk::{
     Align, AlertDialog, Application, ApplicationWindow, Box as GtkBox, Button, Entry, GestureClick,
@@ -14,6 +15,7 @@ use gtk::{
 };
 
 use crate::fs;
+use crate::fs::directory_sorter::{self, Sort, SortKey, SortOrder};
 use crate::ui::file_grid::FileGrid;
 use crate::ui::info_dialog;
 
@@ -144,6 +146,10 @@ pub fn install(app: &Application, window: &ApplicationWindow, grid: &FileGrid) {
         ),
     );
 
+    // Per-directory sort. One parameterized action; the header-bar menu and the
+    // context-menu submenu both target it with a "<key>:<order>" string.
+    add_sort_action(&window, &grid);
+
     app.set_accels_for_action("win.rename", &["F2"]);
     app.set_accels_for_action("win.trash", &["Delete"]);
     app.set_accels_for_action("win.delete-permanent", &["<Shift>Delete"]);
@@ -193,6 +199,48 @@ fn add_action<F: Fn() + 'static>(window: &ApplicationWindow, name: &str, callbac
     window.add_action(&action);
 }
 
+/// The `win.sort` action carries a `"<key>:<order>"` string parameter. On
+/// activation it persists the choice on the current directory and re-sorts the
+/// grid.
+fn add_sort_action(window: &ApplicationWindow, grid: &FileGrid) {
+    let action = gio::SimpleAction::new("sort", Some(glib::VariantTy::STRING));
+    action.connect_activate(clone!(
+        #[strong]
+        grid,
+        move |_, param| {
+            let Some(sort) = param.and_then(|v| v.str()).and_then(Sort::from_meta) else {
+                return;
+            };
+            let Some(dir) = grid.current_dir() else {
+                return;
+            };
+            directory_sorter::write_sort(&dir, sort);
+            grid.set_sort(sort);
+        }
+    ));
+    window.add_action(&action);
+}
+
+/// A menu model of the four sort options, each targeting `win.sort`. Shared by
+/// the header-bar menu button and the context-menu "Sort by" submenu so there's
+/// one source of truth.
+pub fn sort_menu() -> gio::Menu {
+    let menu = gio::Menu::new();
+    let options = [
+        ("Name (A–Z)", SortKey::Name, SortOrder::Asc),
+        ("Name (Z–A)", SortKey::Name, SortOrder::Desc),
+        ("Modified (newest first)", SortKey::Modified, SortOrder::Desc),
+        ("Modified (oldest first)", SortKey::Modified, SortOrder::Asc),
+    ];
+    for (label, key, order) in options {
+        let target = Sort { key, order }.to_meta();
+        let item = gio::MenuItem::new(Some(label), None);
+        item.set_action_and_target_value(Some("win.sort"), Some(&target.to_variant()));
+        menu.append_item(&item);
+    }
+    menu
+}
+
 fn install_context_menu(grid: &FileGrid) {
     let menu = gio::Menu::new();
     menu.append(Some("Copy"), Some("win.copy"));
@@ -201,6 +249,7 @@ fn install_context_menu(grid: &FileGrid) {
     menu.append(Some("Rename"), Some("win.rename"));
     menu.append(Some("Move to Trash"), Some("win.trash"));
     menu.append(Some("Delete permanently…"), Some("win.delete-permanent"));
+    menu.append_submenu(Some("Sort by"), &sort_menu());
     menu.append(Some("Properties"), Some("win.properties"));
 
     let popover = PopoverMenu::from_model(Some(&menu));

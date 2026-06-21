@@ -2,8 +2,9 @@ use std::path::Path;
 use std::rc::Rc;
 
 use gtk::prelude::*;
-use gtk::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation, Paned, HeaderBar};
+use gtk::{glib, Application, ApplicationWindow, Box as GtkBox, HeaderBar, MenuButton, Orientation, Paned};
 
+use crate::fs::directory_sorter;
 use crate::nav::Nav;
 use crate::ui::commands;
 use crate::ui::file_grid::FileGrid;
@@ -17,6 +18,13 @@ pub fn build_window(app: &Application) -> ApplicationWindow {
     let path_bar = PathBar::new(&start);
     let title_bar = HeaderBar::new();
     title_bar.set_title_widget(Some(path_bar.widget()));
+
+    // Sort menu in the header bar — same menu model as the context-menu submenu.
+    let sort_button = MenuButton::builder()
+        .icon_name("view-sort-ascending-symbolic")
+        .menu_model(&commands::sort_menu())
+        .build();
+    title_bar.pack_end(&sort_button);
     let window = ApplicationWindow::builder()
         .application(app)
         .title("dalmation")
@@ -38,6 +46,7 @@ pub fn build_window(app: &Application) -> ApplicationWindow {
 
     let grid = FileGrid::new();
     grid.load(&start);
+    grid.set_sort(directory_sorter::read_sort(&start));
     paned.set_end_child(Some(grid.widget()));
 
     root.append(&paned);
@@ -65,6 +74,7 @@ pub fn build_window(app: &Application) -> ApplicationWindow {
         let path_bar = path_bar.clone();
         Rc::new(move |path: &Path| {
             grid.load(path);
+            grid.set_sort(directory_sorter::read_sort(path));
             path_bar.set_path(path);
         })
     };
