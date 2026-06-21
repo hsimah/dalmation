@@ -4,11 +4,11 @@ use gtk::gio::prelude::*;
 use gtk::prelude::*;
 use gtk::{
     gio, Box as GtkBox, DirectoryList, GridView, Image, Justification, Label, ListItem,
-    MultiSelection, Orientation, ScrolledWindow, SignalListItemFactory, SortListModel, CustomSorter,
+    MultiSelection, Orientation, ScrolledWindow, SignalListItemFactory, SortListModel,
 };
-use std::cmp::Ordering;
 use gtk::glib;
 use crate::thumbnail::Thumbnailer;
+use crate::fs::directory_sorter::DirectorySorter;
 
 const ATTRS: &str = "standard::type,standard::name,standard::display-name,standard::icon,standard::content-type";
 const ICON_SIZE: i32 = 64;
@@ -29,27 +29,10 @@ impl FileGrid {
         dir_list.set_monitored(true);
 
         
-        let sorter = CustomSorter::new(move |a, b| {
-            let a = a.downcast_ref::<gio::FileInfo>().unwrap();
-            let b = b.downcast_ref::<gio::FileInfo>().unwrap();
-
-            let a_is_dir = a.file_type() == gio::FileType::Directory;
-            let b_is_dir = b.file_type() == gio::FileType::Directory;
-
-            match (a_is_dir, b_is_dir) {
-                (true, false) => return Ordering::Less.into(),
-                (false, true) => return Ordering::Greater.into(),
-                _ => {}
-            }
-
-            let an = a.display_name().to_lowercase();
-            let bn = b.display_name().to_lowercase();
-            an.cmp(&bn).into()
-        });
-
+        let directory_sorter = DirectorySorter::new();
         let sorted = SortListModel::builder()
             .model(&dir_list)
-            .sorter(&sorter)
+            .sorter(directory_sorter.sorter())
             .build();
         
         let selection = MultiSelection::new(Some(sorted.clone()));

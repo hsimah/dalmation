@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use gtk::gio;
 use gtk::prelude::*;
 
+pub mod directory_sorter;
+
 /// File operations return a human-readable error string on failure, ready to put
 /// straight into an error dialog. (Small surface, so a custom error type would
 /// be overkill here.)
